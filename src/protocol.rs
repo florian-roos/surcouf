@@ -1,3 +1,6 @@
+use dscale::Message;
+
+#[derive(Debug, Clone, Copy)]
 pub enum OFCMessage {
     Read {
         ballot: u64,
@@ -5,7 +8,7 @@ pub enum OFCMessage {
     Gather {
         ballot: u64,
         impose_ballot: u64,
-        estimate: Value,
+        estimate: Option<Value>,
     },
     Abort {
         ballot: u64,
@@ -28,6 +31,7 @@ pub enum OFCMessage {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Value(bool);
 
 impl Value {
@@ -37,5 +41,11 @@ impl Value {
 
     pub fn get(&self) -> bool {
         self.0
+    }
+}
+
+impl Message for OFCMessage {
+    fn virtual_size(&self) -> usize {
+        64 // Arbitrary fixed size to emulate a realistic message size
     }
 }
