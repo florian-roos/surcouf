@@ -4,8 +4,7 @@ _Note: This repository is currently under active development._
 
 ## Overview
 
-Surcouf is a deterministic simulation of an Obstruction-free consensus (OFC) protocol built in Rust.
-Evaluating consensus algorithms (like Paxos or Raft) in standard multi-threaded environments introduces OS-level scheduler non-determinism (e.g. AKKA in Java). This makes it difficult to reproduce edge-case race conditions or rigorously benchmark latency under specific network constraints.
+Surcouf is a deterministic simulation of an Obstruction-free consensus (OFC) protocol built in Rust designed to solve the fundamental testing limitations of traditional concurrent systems. Typically, evaluating consensus algorithms (like Paxos) in standard multi-threaded environments introduces OS-level scheduler non-determinism (e.g. AKKA in Java). This makes it difficult to reproduce edge-case race conditions or rigorously benchmark latency under specific network constraints.
 
 Surcouf solves this by running the protocol within a strictly single-threaded, event-driven simulation loop (using the DScale simulator https://github.com/kshprenger/dscale). It trades real-world execution for absolute reproducibility. Logical time, network latency distributions and bandwidth limits are strictly controlled. For any given random seed, the sequence of message interleavings, probabilistic crash failures and leader elections is mathematically identical, allowing precise performance profiling across varying cluster sizes ($N$).
 
