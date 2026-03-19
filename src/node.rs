@@ -23,6 +23,7 @@ struct OFCNode {
     acceptor_state: AcceptorState,
     proposer_state: Option<ProposerState>,
     is_crashed: bool,
+    is_holding: bool,
     alpha: f32, // Probability of crash (played at each received message) (0.0 to 1.0)
 }
 
@@ -37,6 +38,7 @@ impl ProcessHandle for OFCNode {
         };
         self.proposer_state = None;
         self.is_crashed = false;
+        self.is_holding = false;
         self.alpha = 0.0;
         let number_of_processes: usize = configuration::process_number();
         debug_process!("Node {} started", self.id);
@@ -75,7 +77,7 @@ impl ProcessHandle for OFCNode {
                 OFCMessage::Abort{ballot} => {
                     debug_process!("Node {} received Abort with ballot {}", self.id, ballot);
                     if let Some(ref mut proposer_state) = self.proposer_state {
-                        if ballot == proposer_state.ballot {
+                        if ballot == proposer_state.ballot && !self.is_holding{
                             self.proposer_state = Some(ProposerState {
                                         proposal: Value::new(random_bool),
                                         ballot: ballot + number_of_processes,
@@ -123,19 +125,24 @@ impl ProcessHandle for OFCNode {
                 }
                 OFCMessage::LaunchCmd => {
                     debug_process!("Node {} received LaunchCmd", self.id);
-                    let process_seed = dscale::global::configuration::seed(); // Get the deterministc seed of the process
-                    let mut rng = rand::rngs::StdRng::seed_from_u64(process_seed); 
-                    let random_bool = rng.gen::<bool>();
+                    if !self.is_holding {
+                        let process_seed = dscale::global::configuration::seed(); // Get the deterministc seed of the process
+                        let mut rng = rand::rngs::StdRng::seed_from_u64(process_seed); 
+                        let random_bool = rng.gen::<bool>();
 
-                    self.proposer_state = Some(ProposerState {
-                        proposal: Value::new(random_bool),
-                        ballot: self.id as u64 + 1,
-                        gathered_states: HashMap::new(),
-                        ack_count: 0,
-                    });
-                    broadcast(OFCMessage::Read{ballot: self.proposer_state.unwrap().ballot});
+                        self.proposer_state = Some(ProposerState {
+                            proposal: Value::new(random_bool),
+                            ballot: self.id as u64 + 1,
+                            gathered_states: HashMap::new(),
+                            ack_count: 0,
+                        });
+                        broadcast(OFCMessage::Read{ballot: self.proposer_state.unwrap().ballot});
+                    }
                 }
-                OFCMessage::HoldCmd => {}
+                OFCMessage::HoldCmd => {
+                    debug_process!("Node {} received HoldCmd", self.id);
+                    self.is_holding = true;
+                }
                 OFCMessage::CrashCmd{alpha} => {}
             }
         }
