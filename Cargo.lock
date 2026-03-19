@@ -446,6 +446,7 @@ name = "surcouf"
 version = "0.1.0"
 dependencies = [
  "dscale",
+ "log",
 ]
 
 [[package]]
