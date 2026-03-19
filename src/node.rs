@@ -100,8 +100,8 @@ impl OFCNode {
 
     fn handle_abort(&mut self, ballot: u64) {
         debug_process!("Node {} received Abort with ballot {}", self.id, ballot);
-        if let Some(ref mut proposer_state) = self.proposer_state {
-            if ballot == proposer_state.ballot && !self.is_holding {
+        if let Some(ref mut proposer_state) = self.proposer_state
+            && ballot == proposer_state.ballot && !self.is_holding {
                 let current_prop = proposer_state.proposal;
                 self.proposer_state = Some(ProposerState {
                     proposal: current_prop,
@@ -111,13 +111,12 @@ impl OFCNode {
                 });
                 broadcast(OFCMessage::Read { ballot: self.proposer_state.as_ref().unwrap().ballot });
             }
-        }
     }
 
     fn handle_gather(&mut self, from: Rank, ballot: u64, impose_ballot: u64, estimate: Option<Value>) {
         debug_process!("Node {} received Gather with ballot {}, impose_ballot {}, estimate {:?}", self.id, ballot, impose_ballot, estimate);
-        if let Some(ref mut proposer_state) = self.proposer_state {
-            if ballot == proposer_state.ballot {
+        if let Some(ref mut proposer_state) = self.proposer_state
+            && ballot == proposer_state.ballot {
                 proposer_state.gathered_states.insert(from, (impose_ballot, estimate));
                 if proposer_state.gathered_states.len() > configuration::process_number() / 2 {
                     let mut highest_impose_ballot = 0;
@@ -134,19 +133,17 @@ impl OFCNode {
                     }
                 }
             }
-        }
     }
 
     fn handle_ack(&mut self, ballot: u64) {
         debug_process!("Node {} received Ack with ballot {}", self.id, ballot);
-        if let Some(ref mut proposer_state) = self.proposer_state {
-            if ballot == proposer_state.ballot {
+        if let Some(ref mut proposer_state) = self.proposer_state
+            && ballot == proposer_state.ballot {
                 proposer_state.ack_count += 1;
                 if proposer_state.ack_count > configuration::process_number() / 2 {
                     broadcast(OFCMessage::Decide { value: proposer_state.proposal.unwrap() });
                 }
             }
-        }
     }
 
     fn handle_decide(&mut self, value: Value) {
