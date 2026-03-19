@@ -54,98 +54,15 @@ impl ProcessHandle for OFCNode {
 
         if let Some(msg) = message.try_as::<OFCMessage>() {
             match *msg {
-                OFCMessage::Read { ballot } => {
-                    debug_process!("Node {} received Read with ballot {}", self.id, ballot);
-                    if self.acceptor_state.read_ballot > ballot || self.acceptor_state.impose_ballot > ballot {
-                        send_to(from, OFCMessage::Abort{ballot})
-                    } else {
-                        self.acceptor_state.read_ballot = ballot;
-                        send_to(from, OFCMessage::Gather{
-                                                            ballot,
-                                                            impose_ballot: self.acceptor_state.impose_ballot,
-                                                            estimate: self.acceptor_state.estimate});
-                    }
-                }
-                OFCMessage::Impose { ballot, value } => {
-                    debug_process!("Node {} received Impose with ballot {}, value {:?}", self.id, ballot, value);
-                    if self.acceptor_state.read_ballot > ballot || self.acceptor_state.impose_ballot > ballot {
-                        send_to(from, OFCMessage::Abort{ballot})
-                    } else {
-                        self.acceptor_state.impose_ballot = ballot;
-                        self.acceptor_state.estimate = Some(value);
-                        send_to(from, OFCMessage::Ack{ballot})
-                    }
-                }
-                OFCMessage::Abort{ballot} => {
-                    debug_process!("Node {} received Abort with ballot {}", self.id, ballot);
-                    if let Some(ref mut proposer_state) = self.proposer_state
-                        && ballot == proposer_state.ballot && !self.is_holding{
-                            let current_prop = proposer_state.proposal;
-                            self.proposer_state = Some(ProposerState {
-                                        proposal: current_prop,
-                                        ballot: ballot + configuration::process_number() as u64,
-                                        gathered_states: HashMap::new(),
-                                        ack_count: 0,
-                            });
-                            broadcast(OFCMessage::Read{ballot: self.proposer_state.as_ref().unwrap().ballot});
-                        }
-                }
-                OFCMessage::Gather{ballot, impose_ballot, estimate} => {
-                    debug_process!("Node {} received Gather with ballot {}, impose_ballot {}, estimate {:?}", self.id, ballot, impose_ballot, estimate);
-                    if let Some(ref mut proposer_state) = self.proposer_state
-                         && ballot == proposer_state.ballot {
-                            proposer_state.gathered_states.insert(from, (impose_ballot, estimate));
-                            if proposer_state.gathered_states.len() > configuration::process_number() / 2 {
-                                let mut highest_impose_ballot = 0;
-                                let mut highest_estimate = None;
-                                for &(impose_ballot, estimate) in proposer_state.gathered_states.values() {
-                                    if impose_ballot > highest_impose_ballot {
-                                        highest_impose_ballot = impose_ballot;
-                                        highest_estimate = estimate;
-                                    }
-                                }
-                                let value_to_propose = highest_estimate.unwrap_or(proposer_state.proposal.unwrap());
-                                for _i in 0..configuration::process_number() {
-                                    broadcast(OFCMessage::Impose{ballot: highest_impose_ballot, value: value_to_propose});
-                                }
-                            }
-                        }
-                }
-                OFCMessage::Ack{ballot} => {
-                    debug_process!("Node {} received Ack with ballot {}", self.id, ballot);
-                    if let Some(ref mut proposer_state) = self.proposer_state
-                        && ballot == proposer_state.ballot {
-                            proposer_state.ack_count += 1;
-                            if proposer_state.ack_count > configuration::process_number() / 2 {
-                                broadcast(OFCMessage::Decide{value: proposer_state.proposal.unwrap()});
-                            }
-                        }
-                }
-                OFCMessage::Decide{value} => {
-                    debug_process!("Node {} received Decide with value {:?}", self.id, value);
-                }
-                OFCMessage::LaunchCmd => {
-                    debug_process!("Node {} received LaunchCmd", self.id);
-                    if !self.is_holding {
-                        let random_bool = self.rng.as_mut().unwrap().random::<bool>();
-
-                        self.proposer_state = Some(ProposerState {
-                            proposal: Some(Value::new(random_bool)),
-                            ballot: self.id as u64 + 1,
-                            gathered_states: HashMap::new(),
-                            ack_count: 0,
-                        });
-                        broadcast(OFCMessage::Read{ballot: self.proposer_state.as_ref().unwrap().ballot});
-                    }
-                }
-                OFCMessage::HoldCmd => {
-                    debug_process!("Node {} received HoldCmd", self.id);
-                    self.is_holding = true;
-                }
-                OFCMessage::CrashCmd{alpha} => {
-                    debug_process!("Node {} received CrashCmd with alpha {}", self.id, alpha);
-                    self.alpha = alpha;
-                }
+                OFCMessage::Read { ballot } => self.handle_read(from, ballot),
+                OFCMessage::Impose { ballot, value } => self.handle_impose(from, ballot, value),
+                OFCMessage::Abort { ballot } => self.handle_abort(ballot),
+                OFCMessage::Gather { ballot, impose_ballot, estimate } => self.handle_gather(from, ballot, impose_ballot, estimate),
+                OFCMessage::Ack { ballot } => self.handle_ack(ballot),
+                OFCMessage::Decide { value } => self.handle_decide(value),
+                OFCMessage::LaunchCmd => self.handle_launch(),
+                OFCMessage::HoldCmd => self.handle_hold(),
+                OFCMessage::CrashCmd { alpha } => self.handle_crash(alpha),
             }
         }
     }
@@ -156,6 +73,111 @@ impl ProcessHandle for OFCNode {
 }
 
 impl OFCNode {
+    fn handle_read(&mut self, from: Rank, ballot: u64) {
+        debug_process!("Node {} received Read with ballot {}", self.id, ballot);
+        if self.acceptor_state.read_ballot > ballot || self.acceptor_state.impose_ballot > ballot {
+            send_to(from, OFCMessage::Abort { ballot });
+        } else {
+            self.acceptor_state.read_ballot = ballot;
+            send_to(from, OFCMessage::Gather {
+                ballot,
+                impose_ballot: self.acceptor_state.impose_ballot,
+                estimate: self.acceptor_state.estimate,
+            });
+        }
+    }
+
+    fn handle_impose(&mut self, from: Rank, ballot: u64, value: Value) {
+        debug_process!("Node {} received Impose with ballot {}, value {:?}", self.id, ballot, value);
+        if self.acceptor_state.read_ballot > ballot || self.acceptor_state.impose_ballot > ballot {
+            send_to(from, OFCMessage::Abort { ballot });
+        } else {
+            self.acceptor_state.impose_ballot = ballot;
+            self.acceptor_state.estimate = Some(value);
+            send_to(from, OFCMessage::Ack { ballot });
+        }
+    }
+
+    fn handle_abort(&mut self, ballot: u64) {
+        debug_process!("Node {} received Abort with ballot {}", self.id, ballot);
+        if let Some(ref mut proposer_state) = self.proposer_state {
+            if ballot == proposer_state.ballot && !self.is_holding {
+                let current_prop = proposer_state.proposal;
+                self.proposer_state = Some(ProposerState {
+                    proposal: current_prop,
+                    ballot: ballot + configuration::process_number() as u64,
+                    gathered_states: HashMap::new(),
+                    ack_count: 0,
+                });
+                broadcast(OFCMessage::Read { ballot: self.proposer_state.as_ref().unwrap().ballot });
+            }
+        }
+    }
+
+    fn handle_gather(&mut self, from: Rank, ballot: u64, impose_ballot: u64, estimate: Option<Value>) {
+        debug_process!("Node {} received Gather with ballot {}, impose_ballot {}, estimate {:?}", self.id, ballot, impose_ballot, estimate);
+        if let Some(ref mut proposer_state) = self.proposer_state {
+            if ballot == proposer_state.ballot {
+                proposer_state.gathered_states.insert(from, (impose_ballot, estimate));
+                if proposer_state.gathered_states.len() > configuration::process_number() / 2 {
+                    let mut highest_impose_ballot = 0;
+                    let mut highest_estimate = None;
+                    for &(impose_bal, est) in proposer_state.gathered_states.values() {
+                        if impose_bal > highest_impose_ballot {
+                            highest_impose_ballot = impose_bal;
+                            highest_estimate = est;
+                        }
+                    }
+                    let value_to_propose = highest_estimate.unwrap_or(proposer_state.proposal.unwrap());
+                    for _i in 0..configuration::process_number() {
+                        broadcast(OFCMessage::Impose { ballot: highest_impose_ballot, value: value_to_propose });
+                    }
+                }
+            }
+        }
+    }
+
+    fn handle_ack(&mut self, ballot: u64) {
+        debug_process!("Node {} received Ack with ballot {}", self.id, ballot);
+        if let Some(ref mut proposer_state) = self.proposer_state {
+            if ballot == proposer_state.ballot {
+                proposer_state.ack_count += 1;
+                if proposer_state.ack_count > configuration::process_number() / 2 {
+                    broadcast(OFCMessage::Decide { value: proposer_state.proposal.unwrap() });
+                }
+            }
+        }
+    }
+
+    fn handle_decide(&mut self, value: Value) {
+        debug_process!("Node {} received Decide with value {:?}", self.id, value);
+    }
+
+    fn handle_launch(&mut self) {
+        debug_process!("Node {} received LaunchCmd", self.id);
+        if !self.is_holding {
+            let random_bool = self.rng.as_mut().unwrap().random::<bool>();
+
+            self.proposer_state = Some(ProposerState {
+                proposal: Some(Value::new(random_bool)),
+                ballot: self.id as u64 + 1,
+                gathered_states: HashMap::new(),
+                ack_count: 0,
+            });
+            broadcast(OFCMessage::Read { ballot: self.proposer_state.as_ref().unwrap().ballot });
+        }
+    }
+
+    fn handle_hold(&mut self) {
+        debug_process!("Node {} received HoldCmd", self.id);
+        self.is_holding = true;
+    }
+
+    fn handle_crash(&mut self, alpha: f32) {
+        debug_process!("Node {} received CrashCmd with alpha {}", self.id, alpha);
+        self.alpha = alpha;
+    }
+
     fn crash_simulation(&mut self) -> bool {
         if self.alpha > 0.0
             && let Some(ref mut rng) = self.rng
