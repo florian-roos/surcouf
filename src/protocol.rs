@@ -1,4 +1,4 @@
-use dscale::Message;
+use dscale::{Message};
 
 #[derive(Debug, Clone, Copy)]
 pub enum OFCMessage {
@@ -26,8 +26,9 @@ pub enum OFCMessage {
 
     LaunchCmd,
     HoldCmd,
+    // Command to order the node to be crash-prone or not (true for crash-prone, false for not crash-prone)
     CrashCmd {
-        probability: f32, // Probability of crash (played at each received message) (0.0 to 1.0)
+        alpha: f32, // Probability of crash (played at each received message) (0.0 to 1.0)
     },
 }
 
