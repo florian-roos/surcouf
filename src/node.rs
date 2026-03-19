@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use rand::{Rng, SeedableRng};
 use dscale::{ProcessHandle, Rank, MessagePtr, TimerId};
 use dscale::{rank, send_to, broadcast, debug_process, now};
 use dscale::global::configuration;
@@ -73,6 +74,7 @@ impl ProcessHandle for OFCNode {
                 }
                 OFCMessage::Abort{ballot} => {
                     //retry with higher ballot
+                    //Don't forget to clear the proposer state when retrying with a higher ballot
                 }
                 OFCMessage::Gather{ballot, impose_ballot, estimate} => {
                     debug_process!("Node {} received Gather with ballot {}, impose_ballot {}, estimate {:?}", self.id, ballot, impose_ballot, estimate);
@@ -107,7 +109,20 @@ impl ProcessHandle for OFCNode {
                     }
                 }
                 OFCMessage::Decide{value} => {}
-                OFCMessage::LaunchCmd => {}
+                OFCMessage::LaunchCmd => {
+                    debug_process!("Node {} received LaunchCmd", self.id);
+                    let process_seed = dscale::global::configuration::seed(); // Get the deterministc seed of the process
+                    let mut rng = rand::rngs::StdRng::seed_from_u64(process_seed); 
+                    let random_bool = rng.gen::<bool>();
+                    
+                    self.proposer_state = Some(ProposerState {
+                        proposal: Value::new(random_bool),
+                        ballot: self.id as u64 + 1,
+                        gathered_states: HashMap::new(),
+                        ack_count: 0,
+                    });
+                    broadcast(OFCMessage::Read{ballot: self.proposer_state.unwrap().ballot});
+                }
                 OFCMessage::HoldCmd => {}
                 OFCMessage::CrashCmd{alpha} => {}
             }
@@ -118,5 +133,4 @@ impl ProcessHandle for OFCNode {
         // No timer-based actions for now
     }
 }
-
 
