@@ -71,7 +71,9 @@ impl ProcessHandle for OFCNode {
                         send_to(from, OFCMessage::Ack{ballot})
                     }
                 }
-                OFCMessage::Abort{ballot} => {}
+                OFCMessage::Abort{ballot} => {
+                    //retry with higher ballot
+                }
                 OFCMessage::Gather{ballot, impose_ballot, estimate} => {
                     debug_process!("Node {} received Gather with ballot {}, impose_ballot {}, estimate {:?}", self.id, ballot, impose_ballot, estimate);
                     if let Some(ref mut proposer_state) = self.proposer_state {
@@ -91,10 +93,19 @@ impl ProcessHandle for OFCNode {
                                     broadcast(OFCMessage::Impose{ballot: highest_impose_ballot, value: value_to_propose});
                                 }
                             }
-
                     }
                 }
-                OFCMessage::Ack{ballot} => {}
+                OFCMessage::Ack{ballot} => {
+                    debug_process!("Node {} received Ack with ballot {}", self.id, ballot);
+                    if let Some(ref mut proposer_state) = self.proposer_state {
+                        if ballot == proposer_state.ballot {
+                            proposer_state.ack_count += 1;
+                            if proposer_state.ack_count > configuration::process_number() / 2 {
+                                broadcast(OFCMessage::Decide{value: proposer_state.proposal.unwrap()});
+                            }
+                        }
+                    }
+                }
                 OFCMessage::Decide{value} => {}
                 OFCMessage::LaunchCmd => {}
                 OFCMessage::HoldCmd => {}
