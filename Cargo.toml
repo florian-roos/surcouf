@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 dscale = "0.3.3"
 log = "0.4.29"
+rand = "0.10.0"
