@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use dscale::{ProcessHandle, Rank, MessagePtr, TimerId};
-use dscale::{rank, send_to,  debug_process, now};
+use dscale::{rank, send_to, broadcast, debug_process, now};
+use dscale::global::configuration;
 use crate::protocol::{OFCMessage, Value};
 
 struct ProposerState {
@@ -36,7 +37,7 @@ impl ProcessHandle for OFCNode {
         self.proposer_state = None;
         self.is_crashed = false;
         self.alpha = 0.0;
-
+        let number_of_processes: usize = configuration::process_number();
         debug_process!("Node {} started", self.id);
     }
 
@@ -71,7 +72,28 @@ impl ProcessHandle for OFCNode {
                     }
                 }
                 OFCMessage::Abort{ballot} => {}
-                OFCMessage::Gather{ballot, impose_ballot, estimate} => {}
+                OFCMessage::Gather{ballot, impose_ballot, estimate} => {
+                    debug_process!("Node {} received Gather with ballot {}, impose_ballot {}, estimate {:?}", self.id, ballot, impose_ballot, estimate);
+                    if let Some(ref mut proposer_state) = self.proposer_state {
+                         if ballot == self.proposer_state.ballot {
+                            self.proposer_state.gathered_states.insert(from, (impose_ballot, estimate));
+                            if self.proposer_state.gathered_states.len() > configuration::process_number() / 2 {
+                                let mut highest_impose_ballot = 0;
+                                let mut highest_estimate = None;
+                                for &(_, (impose_ballot, estimate)) in &self.proposer_state.gathered_states {
+                                    if impose_ballot > highest_impose_ballot {
+                                        highest_impose_ballot = impose_ballot;
+                                        highest_estimate = estimate;
+                                    }
+                                }
+                                let value_to_propose = highest_estimate.unwrap_or(self.proposer_state.proposal.unwrap());
+                                for i in 0..number_of_processes {
+                                    broadcast(OFCMessage::Impose{ballot: highest_impose_ballot, value: value_to_propose});
+                                }
+                            }
+
+                    }
+                }
                 OFCMessage::Ack{ballot} => {}
                 OFCMessage::Decide{value} => {}
                 OFCMessage::LaunchCmd => {}
