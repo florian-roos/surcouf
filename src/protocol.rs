@@ -39,10 +39,6 @@ impl Value {
     pub fn new(value: bool) -> Self {
         Self(value)
     }
-
-    pub fn get(&self) -> bool {
-        self.0
-    }
 }
 
 impl Message for OFCMessage {
