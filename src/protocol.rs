@@ -1,4 +1,4 @@
-use dscale::Message;
+use dscale::{Message, Rank};
 
 #[derive(Debug, Clone, Copy)]
 pub enum OFCMessage {
@@ -26,8 +26,9 @@ pub enum OFCMessage {
 
     LaunchCmd,
     HoldCmd,
+    // Command to order the node to be crash-prone or not (true for crash-prone, false for not crash-prone)
     CrashCmd {
-        probability: f32, // Probability of crash (played at each received message) (0.0 to 1.0)
+        alpha: f32, // Probability of crash (played at each received message) (0.0 to 1.0)
     },
 }
 
@@ -41,6 +42,29 @@ impl Value {
 
     pub fn get(&self) -> bool {
         self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Ballot{
+    ballot_number: u64,
+    process_number: u64,
+}
+
+impl Ballot {
+    pub fn new(id: Rank, process_number: u64) -> Self {
+        Self {
+            ballot_number: (id as u64) + 1, 
+            process_number,
+        }
+    }
+
+    pub fn get(&self) -> u64 {
+        self.ballot_number
+    }
+
+    pub fn increment(&mut self) {
+        self.ballot_number += self.process_number;
     }
 }
 
