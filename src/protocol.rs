@@ -1,4 +1,4 @@
-use dscale::{Message, Rank};
+use dscale::{Message};
 
 #[derive(Debug, Clone, Copy)]
 pub enum OFCMessage {
@@ -42,29 +42,6 @@ impl Value {
 
     pub fn get(&self) -> bool {
         self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Ballot{
-    ballot_number: u64,
-    process_number: u64,
-}
-
-impl Ballot {
-    pub fn new(id: Rank, process_number: u64) -> Self {
-        Self {
-            ballot_number: (id as u64) + 1, 
-            process_number,
-        }
-    }
-
-    pub fn get(&self) -> u64 {
-        self.ballot_number
-    }
-
-    pub fn increment(&mut self) {
-        self.ballot_number += self.process_number;
     }
 }
 
