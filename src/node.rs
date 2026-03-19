@@ -73,8 +73,18 @@ impl ProcessHandle for OFCNode {
                     }
                 }
                 OFCMessage::Abort{ballot} => {
-                    //retry with higher ballot
-                    //Don't forget to clear the proposer state when retrying with a higher ballot
+                    debug_process!("Node {} received Abort with ballot {}", self.id, ballot);
+                    if let Some(ref mut proposer_state) = self.proposer_state {
+                        if ballot == proposer_state.ballot {
+                            self.proposer_state = Some(ProposerState {
+                                        proposal: Value::new(random_bool),
+                                        ballot: ballot + number_of_processes,
+                                        gathered_states: HashMap::new(),
+                                        ack_count: 0,
+                            });
+                            broadcast(OFCMessage::Read{ballot: self.proposer_state.unwrap().ballot});
+                        }
+                    }
                 }
                 OFCMessage::Gather{ballot, impose_ballot, estimate} => {
                     debug_process!("Node {} received Gather with ballot {}, impose_ballot {}, estimate {:?}", self.id, ballot, impose_ballot, estimate);
@@ -108,13 +118,15 @@ impl ProcessHandle for OFCNode {
                         }
                     }
                 }
-                OFCMessage::Decide{value} => {}
+                OFCMessage::Decide{value} => {
+                    debug_process!("Node {} received Decide with value {:?}", self.id, value);
+                }
                 OFCMessage::LaunchCmd => {
                     debug_process!("Node {} received LaunchCmd", self.id);
                     let process_seed = dscale::global::configuration::seed(); // Get the deterministc seed of the process
                     let mut rng = rand::rngs::StdRng::seed_from_u64(process_seed); 
                     let random_bool = rng.gen::<bool>();
-                    
+
                     self.proposer_state = Some(ProposerState {
                         proposal: Value::new(random_bool),
                         ballot: self.id as u64 + 1,
