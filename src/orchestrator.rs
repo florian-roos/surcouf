@@ -42,7 +42,7 @@ impl ProcessHandle for Orchestrator {
         }
 
         self.hold_timer_id = Some(schedule_timer_after(t_le));
-        self.kv_checker_timer_id = Some(schedule_timer_after(Jiffies(10))); // Timer to check for decisions
+        self.kv_checker_timer_id = Some(schedule_timer_after(Jiffies(5))); // Timer to check for decisions
     }
 
     fn on_message(&mut self, _from: Rank, _message: MessagePtr) {
@@ -67,7 +67,7 @@ impl ProcessHandle for Orchestrator {
                     self.kv_checker_timer_id = Some(schedule_timer_after(Jiffies(2_000_000)));
                 }
             } else {
-                self.kv_checker_timer_id = Some(schedule_timer_after(Jiffies(10)));
+                self.kv_checker_timer_id = Some(schedule_timer_after(Jiffies(5)));
             }
         }
     }
