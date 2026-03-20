@@ -153,7 +153,7 @@ impl OFCNode {
     fn handle_decide(&mut self, from: Rank, value: Value) {
         debug_process!("Node {} received Decide from {} with value {:?}", self.id, from, value);
         broadcast(OFCMessage::Decide { value });
-        kv::modify::<usize>("decieded_processes", |x| *x += 1);
+        kv::modify::<usize>("decided_processes", |x| *x += 1);
         self.has_decided = true;
     }
 

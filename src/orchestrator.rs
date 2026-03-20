@@ -8,7 +8,7 @@ use dscale::{send_to,now, schedule_timer_after};
 use crate::protocol::{OFCMessage};
 
 #[derive(Default)]
-struct Orchestrator{
+pub struct Orchestrator{
     n: usize,
     f: usize,
     rng: Option<rand::rngs::StdRng>,
@@ -59,7 +59,7 @@ impl ProcessHandle for Orchestrator {
                 }
             }
         } else {
-            let decided_processes = kv::get::<usize>("decieded_processes");
+            let decided_processes = kv::get::<usize>("decided_processes");
         if decided_processes >= self.n - self.f {
             kv::set::<Jiffies>("latency", now());
         } else {
