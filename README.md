@@ -51,3 +51,33 @@ The simulation evaluates consensus latency depending multiple parameters:
 1. Cluster size ($N$)
 2. Leader election timeout ($t_{le}$)
 3. Crash probability ($\alpha$)
+
+## Running the Benchmarks
+
+This benchmark evaluate the latency of the algorithm for multiple $N$, $f$, $\alpha$, and $t_{le}$ and outputs the results as a CSV. Every measure is repeated five times with 5 different seeds.
+
+$N$ = 3, 10, 30, 70, 100 (with $f$ = 1, 4, 14, 34, 49, respectively)
+$\alpha$ = 0, 0.1, 1
+$t_{le}$ = 200, 100, 50, 30, 20, 10 (`Jiffies` cf. (1) at the end of the README)
+
+To run the benchmark suite:
+
+```bash
+cargo run > results.csv
+```
+
+### Tracing the Protocol
+
+To observe the simulated network events:
+
+```bash
+RUST_LOG=surcouf=debug cargo run
+```
+
+### Output Format
+
+The output uses the following CSV headers:
+`N, f, Alpha, T_le, Seed, Latency`
+
+(1) The latency is measured in DScale's logical time units (`Jiffies`). This decouples the simulation's timeline from local hardware execution speed. In our simulation we consider 1 `Jiffies` = 1 ms and we use for the latency of the messages between the processes a normal distribution N($\mu$=10ms, $\sigma$=3ms) to emulate a network behavior.
+(2) The simulation is deterministic. Re-running the same parameter tuple (including the seed) will yield the exact same event sequence and latency.
