@@ -3,6 +3,7 @@ use rand::{SeedableRng, RngExt};
 use dscale::{ProcessHandle, Rank, MessagePtr, TimerId};
 use dscale::{rank, send_to, broadcast, debug_process, now};
 use dscale::global::configuration;
+use dscale::global::kv;
 use crate::protocol::{OFCMessage, Value};
 
 struct ProposerState {
@@ -24,6 +25,7 @@ pub struct OFCNode {
     proposer_state: Option<ProposerState>,
     is_crashed: bool,
     is_holding: bool,
+    has_decided: bool,
     alpha: f32, // Probability of crash (played at each received message) (0.0 to 1.0)
     rng: Option<rand::rngs::StdRng>,
 }
@@ -40,6 +42,7 @@ impl ProcessHandle for OFCNode {
         self.proposer_state = None;
         self.is_crashed = false;
         self.is_holding = false;
+        self.has_decided = false;
         self.alpha = 0.0;
         self.rng = Some(rand::rngs::StdRng::seed_from_u64(configuration::seed()));
         let _number_of_processes: usize = configuration::process_number() - 1; // Exclude the orchestrator
@@ -48,7 +51,7 @@ impl ProcessHandle for OFCNode {
 
     fn on_message(&mut self, from: Rank, message: MessagePtr) {
         // Simulate crash based on alpha probability
-        if self.is_crashed || self.crash_simulation() {
+        if self.is_crashed || self.has_decided || self.crash_simulation() {
             return 
         }
 
@@ -59,7 +62,7 @@ impl ProcessHandle for OFCNode {
                 OFCMessage::Abort { ballot } => self.handle_abort(ballot),
                 OFCMessage::Gather { ballot, impose_ballot, estimate } => self.handle_gather(from, ballot, impose_ballot, estimate),
                 OFCMessage::Ack { ballot } => self.handle_ack(ballot),
-                OFCMessage::Decide { value } => self.handle_decide(value),
+                OFCMessage::Decide { value } => self.handle_decide(from, value),
                 OFCMessage::LaunchCmd => self.handle_launch(),
                 OFCMessage::HoldCmd => self.handle_hold(),
                 OFCMessage::CrashCmd { alpha } => self.handle_crash(alpha),
@@ -129,7 +132,7 @@ impl OFCNode {
                     }
                     let value_to_propose = highest_estimate.unwrap_or(proposer_state.proposal.unwrap());
                     for _i in 0..(configuration::process_number() - 1) {
-                        broadcast(OFCMessage::Impose { ballot: highest_impose_ballot, value: value_to_propose });
+                        broadcast(OFCMessage::Impose { ballot, value: value_to_propose });
                     }
                 }
             }
@@ -140,14 +143,18 @@ impl OFCNode {
         if let Some(ref mut proposer_state) = self.proposer_state
             && ballot == proposer_state.ballot {
                 proposer_state.ack_count += 1;
-                if proposer_state.ack_count > (configuration::process_number() - 1) / 2 {
+                if proposer_state.ack_count == (configuration::process_number() - 1) / 2{
+                    debug_process!("Node {} broadcasted decide after Ack", self.id);
                     broadcast(OFCMessage::Decide { value: proposer_state.proposal.unwrap() });
                 }
             }
     }
 
-    fn handle_decide(&mut self, value: Value) {
-        debug_process!("Node {} received Decide with value {:?}", self.id, value);
+    fn handle_decide(&mut self, from: Rank, value: Value) {
+        debug_process!("Node {} received Decide from {} with value {:?}", self.id, from, value);
+        broadcast(OFCMessage::Decide { value });
+        kv::modify::<usize>("decieded_processes", |x| *x += 1);
+        self.has_decided = true;
     }
 
     fn handle_launch(&mut self) {
@@ -199,6 +206,7 @@ impl Default for OFCNode {
             proposer_state: None,
             is_crashed: false,
             is_holding: false,
+            has_decided: false,
             alpha: 0.0,
             rng: None,
         }
