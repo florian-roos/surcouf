@@ -22,9 +22,9 @@ impl ProcessHandle for Orchestrator {
         self.f = kv::get::<usize>("f"); // Number of crash-prone nodes
         let alpha = kv::get::<f32>("alpha"); // Crash probability for crash-prone nodes
         let t_le = kv::get::<Jiffies>("t_le"); // Time of leader election
-        kv::set::<usize>("decieded_processes", 0);
+        kv::set::<usize>("decided_processes", 0);
 
-        // Schuffle the pool of nodes to randomly select f crash-prone nodes
+        // Shuffle the pool of nodes to randomly select f crash-prone nodes
         self.rng = Some(rand::rngs::StdRng::seed_from_u64(configuration::seed()));
         let mut node_ranks: Vec<Rank> = (0..self.n as Rank).collect();
         if let Some(ref mut rng) = self.rng{
