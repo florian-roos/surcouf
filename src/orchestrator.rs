@@ -60,11 +60,15 @@ impl ProcessHandle for Orchestrator {
             }
         } else {
             let decided_processes = kv::get::<usize>("decided_processes");
-        if decided_processes >= self.n - self.f {
-            kv::set::<Jiffies>("latency", now());
-        } else {
-            self.kv_checker_timer_id = Some(schedule_timer_after(Jiffies(10)));
+            if decided_processes >= self.n - self.f {
+                if kv::get::<Jiffies>("latency") == Jiffies(0) {
+                    kv::set::<Jiffies>("latency", now());
+                    // Fast-forward to the end of the simulation time budget to avoid a deadlock panic!
+                    self.kv_checker_timer_id = Some(schedule_timer_after(Jiffies(2_000_000)));
+                }
+            } else {
+                self.kv_checker_timer_id = Some(schedule_timer_after(Jiffies(10)));
+            }
         }
-    }
     }
 }
