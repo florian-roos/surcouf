@@ -45,7 +45,11 @@ impl ProcessHandle for OFCNode {
         self.is_holding = false;
         self.has_decided = false;
         self.alpha = 0.0;
-        self.rng = Some(rand::rngs::StdRng::seed_from_u64(configuration::seed()));
+        
+        // Use the global seed mixed with the node id to ensure independent random streams
+        let unique_seed = configuration::seed().wrapping_add((self.id as u64).wrapping_mul(1_000_000_007));
+        self.rng = Some(rand::rngs::StdRng::seed_from_u64(unique_seed));
+        
         let _number_of_processes: usize = configuration::process_number() - 1; // Exclude the orchestrator
         debug_process!("Node {} started", self.id);
     }
