@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use rand::{SeedableRng, RngExt};
-use dscale::{ProcessHandle, Rank, MessagePtr, TimerId};
+use dscale::{ProcessHandle, Rank, MessagePtr, TimerId, Jiffies};
 use dscale::{rank, send_to, broadcast, debug_process, now};
 use dscale::global::configuration;
 use dscale::global::kv;
@@ -28,6 +28,7 @@ pub struct OFCNode {
     has_decided: bool,
     alpha: f32, // Probability of crash (played at each received message) (0.0 to 1.0)
     rng: Option<rand::rngs::StdRng>,
+    start_proposing_timer: Option<Jiffies>, // Timer to measure the time from first proposal to decision
 }
 
 impl ProcessHandle for OFCNode {
@@ -121,7 +122,7 @@ impl OFCNode {
         if let Some(ref mut proposer_state) = self.proposer_state
             && ballot == proposer_state.ballot {
                 proposer_state.gathered_states.insert(from, (impose_ballot, estimate));
-                if proposer_state.gathered_states.len() > (configuration::process_number() - 1) / 2 {
+                if proposer_state.gathered_states.len() == (configuration::process_number() - 1) / 2 + 1 {
                     let mut highest_impose_ballot = 0;
                     let mut highest_estimate = None;
                     for &(impose_bal, est) in proposer_state.gathered_states.values() {
@@ -131,9 +132,7 @@ impl OFCNode {
                         }
                     }
                     let value_to_propose = highest_estimate.unwrap_or(proposer_state.proposal.unwrap());
-                    for _i in 0..(configuration::process_number() - 1) {
-                        broadcast(OFCMessage::Impose { ballot, value: value_to_propose });
-                    }
+                    broadcast(OFCMessage::Impose { ballot, value: value_to_propose });
                 }
             }
     }
@@ -143,8 +142,9 @@ impl OFCNode {
         if let Some(ref mut proposer_state) = self.proposer_state
             && ballot == proposer_state.ballot {
                 proposer_state.ack_count += 1;
-                if proposer_state.ack_count == (configuration::process_number() - 1) / 2{
+                if proposer_state.ack_count == (configuration::process_number() - 1) / 2 + 1{ 
                     debug_process!("Node {} broadcasted decide after Ack", self.id);
+                    kv::set::<Jiffies>("latency", now() - self.start_proposing_timer.unwrap()); // Record latency from first proposal to decision
                     broadcast(OFCMessage::Decide { value: proposer_state.proposal.unwrap() });
                 }
             }
@@ -153,7 +153,6 @@ impl OFCNode {
     fn handle_decide(&mut self, from: Rank, value: Value) {
         debug_process!("Node {} received Decide from {} with value {:?}", self.id, from, value);
         broadcast(OFCMessage::Decide { value });
-        kv::modify::<usize>("decided_processes", |x| *x += 1);
         self.has_decided = true;
     }
 
@@ -168,6 +167,7 @@ impl OFCNode {
                 gathered_states: HashMap::new(),
                 ack_count: 0,
             });
+            self.start_proposing_timer = Some(now());
             broadcast(OFCMessage::Read { ballot: self.proposer_state.as_ref().unwrap().ballot });
         }
     }
@@ -209,6 +209,7 @@ impl Default for OFCNode {
             has_decided: false,
             alpha: 0.0,
             rng: None,
+            start_proposing_timer: None,
         }
     }
 }
