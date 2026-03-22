@@ -1,4 +1,4 @@
-use dscale::{SimulationBuilder, Jiffies, LatencyDescription, Distributions};
+use dscale::{SimulationBuilder, Jiffies, LatencyDescription, Distributions, BandwidthDescription};
 use dscale::global::kv;
 use std::fs::File;
 use std::io::Write;
@@ -32,6 +32,7 @@ pub fn run_simulation(n: usize, f: usize, alpha: f32, t_le: u64, seed: u64, dist
             LatencyDescription::WithinPool("Nodes", parse_distribution(dist_str)),
             LatencyDescription::BetweenPools("Nodes", "Orchestrator", Distributions::Uniform(Jiffies(0), Jiffies(0))),
         ])
+        .nic_bandwidth(BandwidthDescription::Bounded(10000)) 
         .time_budget(Jiffies(1_000_000))
         .build();
 

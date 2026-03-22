@@ -43,6 +43,17 @@ impl Value {
 
 impl Message for OFCMessage {
     fn virtual_size(&self) -> usize {
-        64 // Arbitrary fixed size to emulate a realistic message size
-    }
+        // Size in bytes used for bandwidth simulation.
+        match self {
+            OFCMessage::Read { .. }   =>   64,  // just a ballot number
+            OFCMessage::Gather { .. } => 8192,  // carries the actual value (8 KB)
+            OFCMessage::Impose { .. } => 8192,  // carries the value being imposed
+            OFCMessage::Ack { .. }    =>   64,  // just a ballot number
+            OFCMessage::Decide { .. } => 8192,  // carries the decided value
+            OFCMessage::Abort { .. }  =>   64,  // just a ballot number
+            OFCMessage::LaunchCmd => 0, // Command from the orchestrator, no payload
+            OFCMessage::HoldCmd => 0, // Command from the orchestrator, no payload
+            OFCMessage::CrashCmd { .. } => 0, // Command from the orchestrator, no payload
+    }   
+ }
 }
