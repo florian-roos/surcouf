@@ -54,6 +54,6 @@ impl Message for OFCMessage {
             OFCMessage::LaunchCmd => 0, // Command from the orchestrator, no payload
             OFCMessage::HoldCmd => 0, // Command from the orchestrator, no payload
             OFCMessage::CrashCmd { .. } => 0, // Command from the orchestrator, no payload
-    }   
- }
+        }   
+    }
 }

@@ -32,7 +32,7 @@ pub fn run_simulation(n: usize, f: usize, alpha: f32, t_le: u64, seed: u64, dist
             LatencyDescription::WithinPool("Nodes", parse_distribution(dist_str)),
             LatencyDescription::BetweenPools("Nodes", "Orchestrator", Distributions::Uniform(Jiffies(0), Jiffies(0))),
         ])
-        .nic_bandwidth(BandwidthDescription::Bounded(10000)) 
+        .nic_bandwidth(BandwidthDescription::Bounded(12500))  // 100 Mbps assuming 1 Jiffy = 1 ms.
         .time_budget(Jiffies(1_000_000))
         .build();
 
@@ -51,7 +51,7 @@ pub fn run_benchmark(dist_str: &str) {
     let n_values = [3, 10, 30, 70, 100]; //
     let f_values = [1, 4, 14, 34, 49]; 
     let alpha_values = vec![0.0, 0.1, 1.0]; 
-    let t_le_values: Vec<u64> = vec![200, 100, 50, 30, 20, 10];
+    let t_le_values: Vec<u64> = vec![200, 100, 50, 30, 20, 0];
     
     let file_name = format!("results_{}.csv", dist_str);
     let mut file = File::create(&file_name).expect("Unable to create results file");
