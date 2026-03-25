@@ -30,6 +30,8 @@ impl ProcessHandle for Orchestrator {
             node_ranks.shuffle(rng);
         }
 
+        self.hold_timer_id = Some(schedule_timer_after(t_le));
+
         // Send crash commands to the selected crash-prone nodes
         let crash_prone_nodes = &node_ranks[0..self.f];
         for &rank in crash_prone_nodes {
@@ -42,7 +44,6 @@ impl ProcessHandle for Orchestrator {
             send_to(i as Rank, OFCMessage::LaunchCmd);
         }
 
-        self.hold_timer_id = Some(schedule_timer_after(t_le));
     }
 
     fn on_message(&mut self, _from: Rank, _message: MessagePtr) {
